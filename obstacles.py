@@ -34,7 +34,4 @@ class Target(Obstacle):
         super().__init__(position, width, height)
 
     def hit(self):
-        """
-        Azione da eseguire quando il bersaglio viene colpito.
-        """
         print("Bersaglio colpito!")

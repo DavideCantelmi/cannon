@@ -49,3 +49,4 @@ class Cannon:
         vy = self.velocity * math.sin(angle_rad)
 
         return vx, vy
+

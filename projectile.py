@@ -49,9 +49,6 @@ class Bombshell(Projectile):
         super().__init__(position, velocity, angle, mass=20, radius=10)
 
     def explode(self):
-        """
-        Crea un effetto esplosione, danneggiando gli ostacoli vicini.
-        """
         print("Bombshell esplosa! Danno ad area")
 
 class Laser(Projectile):
