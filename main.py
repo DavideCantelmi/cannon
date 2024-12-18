@@ -1,269 +1,329 @@
 from kivy.app import App
 from kivy.uix.widget import Widget
-from kivy.graphics import Line, Color, Ellipse, Rectangle
-from kivy.clock import Clock
-from kivy.core.audio import SoundLoader
-from kivy.uix.label import Label
-from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.image import Image
-import math
+from kivy.uix.label import Label
+from kivy.graphics import Color, Ellipse, Line, Rectangle
+from kivy.clock import Clock
 from kivy.core.window import Window
-from cannon import Cannon
-from projectile import Bullet, Bombshell, Laser
-from obstacles import Obstacle, Target
-from levels import load_level
-from kivy.uix.button import Button
+import math
+import random
+from constants import *
 
 
-
-
-class CannonWidget(FloatLayout):
+class CannonGame(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.cannon = Cannon(position=(50, 50))
-        self.sensitivity = 0.2
-        self.last_touch_y = None
+        self.size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.cannon_x = 50
+        self.cannon_y = 100
+        self.cannon_angle = 45
+        self.cannon_power = 200
         self.projectiles = []
-
-        self.score = 0
-        self.shots_fired = 0
-        self.current_level = 1
-        self.start_time = Clock.get_time()
-
-        self.shoot_sound = SoundLoader.load('sounds/shoot.wav')
-        self.explosion_sound = SoundLoader.load('sounds/explosion.wav')
-        self.hit_target_sound = SoundLoader.load('sounds/hit_target.wav')
-
-        with self.canvas.before:
-            Color(1, 1, 1, 1)
-            Rectangle(pos=self.pos, size=self.size)
-
-        self.ui_layout = BoxLayout(
-            orientation='horizontal',
-            size_hint=(1, None),
-            height=50,
-            pos_hint={'top': 1}
-        )
-
-        with self.ui_layout.canvas.before:
-            Color(0.2, 0.2, 0.2, 0.8)
-            Rectangle(size=self.ui_layout.size, pos=self.ui_layout.pos)
-        self.ui_layout.bind(size=self._update_ui_background, pos=self._update_ui_background)
-
-        self.score_label = Label(
-            text=f"Punteggio: {self.score}",
-            size_hint=(0.5, 1),
-            font_size=20,
-            color=(1, 1, 1, 1)
-        )
-        self.level_label = Label(
-            text=f"Livello: {self.current_level}",
-            size_hint=(0.5, 1),
-            font_size=20,
-            color=(1, 1, 1, 1)
-        )
-
-        self.ui_layout.add_widget(self.level_label)
-        self.ui_layout.add_widget(self.score_label)
-
-        self.add_widget(self.ui_layout)
-
         self.obstacles = []
-        self.load_level(self.current_level)
+        self.targets = []
+        self.score = 0
+        self.current_level = 1
+        self.total_levels = 10
 
-        Clock.schedule_interval(self.update_cannon, 1.0 / 60.0)
-        Window.bind(on_key_down=self.on_key_down)
+        self.projectile_types = ["Bullet", "Bombshell", "Laser"]
+        self.current_projectile_index = 0
 
-        self.bind(size=self._update_ui_background, pos=self._update_ui_background)
-        
-    def _update_ui_background(self, *args):
-        """
-        Aggiorna lo sfondo del layout della UI.
-        """
-        for instruction in self.ui_layout.canvas.before.children:
-            if isinstance(instruction, Rectangle):
-                instruction.size = self.ui_layout.size
-                instruction.pos = self.ui_layout.pos
+        self.generate_level()
 
-    def load_level(self, level_num):
-        """
-        Carica il livello specifico.
-        """
-        self.current_level = level_num
-        self.obstacles = load_level(level_num)
-        self.update_ui()
-        
-    def on_key_down(self, window, key, scancode, codepoint, modifier):
-        """
-        Cambia il tipo di proiettile in base al tasto premuto.
-        """
-        if key == ord('1'):
-            self.current_projectile_type = "bullet"
-            print("Tipo di proiettile cambiato a: Bullet")
-        elif key == ord('2'):
-            self.current_projectile_type = "bombshell"
-            print("Tipo di proiettile cambiato a: Bombshell")
-        elif key == ord('3'):
-            self.current_projectile_type = "laser"
-            print("Tipo di proiettile cambiato a: Laser")
+    from kivy.app import App
+from kivy.uix.widget import Widget
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.label import Label
+from kivy.graphics import Color, Ellipse, Line, Rectangle
+from kivy.clock import Clock
+from kivy.core.window import Window
+import math
+import random
+from constants import *
+
+
+class CannonGame(Widget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.cannon_x = 50
+        self.cannon_y = 100
+        self.cannon_angle = 45
+        self.cannon_power = 200  # Velocità minima più alta
+        self.projectiles = []
+        self.obstacles = []
+        self.targets = []
+        self.score = 0
+        self.current_level = 1
+        self.total_levels = 10
+
+        self.projectile_types = ["Bullet", "Bombshell", "Laser"]
+        self.current_projectile_index = 0
+
+        self.generate_level()
+
+    def generate_level(self):
+        """Genera ostacoli e target casualmente."""
+        self.obstacles = []
+        self.targets = []
+
+        if self.current_level > self.total_levels:
+            self.parent.show_game_over()
+            return
+
+        num_obstacles = random.randint(3, 6)
+        num_targets = random.randint(2, 5)
+
+        for _ in range(num_obstacles):
+            while True:
+                obstacle_x = random.randint(200, SCREEN_WIDTH - 100)
+                obstacle_y = random.randint(50, SCREEN_HEIGHT - 50)
+                new_obstacle = {"x": obstacle_x, "y": obstacle_y, "width": 50, "height": 50}
+                if not self.check_overlap(new_obstacle, self.obstacles):
+                    self.obstacles.append(new_obstacle)
+                    break
+
+        for _ in range(num_targets):
+            while True:
+                target_x = random.randint(200, SCREEN_WIDTH - 100)
+                target_y = random.randint(50, SCREEN_HEIGHT - 50)
+                new_target = {"x": target_x, "y": target_y, "radius": 20}
+                if not self.check_overlap_with_targets(new_target, self.obstacles):
+                    self.targets.append(new_target)
+                    break
+
+    def check_overlap(self, rect, others):
+        """Verifica sovrapposizione tra rettangoli."""
+        for other in others:
+            if (rect["x"] < other["x"] + other["width"] and
+                rect["x"] + rect["width"] > other["x"] and
+                rect["y"] < other["y"] + other["height"] and
+                rect["y"] + rect["height"] > other["y"]):
+                return True
+        return False
+
+    def check_overlap_with_targets(self, target, obstacles):
+        """Verifica che un target non si sovrapponga a ostacoli."""
+        for obstacle in obstacles:
+            if (target["x"] + target["radius"] > obstacle["x"] and
+                target["x"] - target["radius"] < obstacle["x"] + obstacle["width"] and
+                target["y"] + target["radius"] > obstacle["y"] and
+                target["y"] - target["radius"] < obstacle["y"] + obstacle["height"]):
+                return True
+        return False
+
+    def fire_projectile(self):
+        """Logica per sparare un proiettile."""
+        projectile_type = self.projectile_types[self.current_projectile_index]
+        angle_rad = math.radians(self.cannon_angle)
+        vx = self.cannon_power * math.cos(angle_rad)
+        vy = self.cannon_power * math.sin(angle_rad)
+
+        if projectile_type == "Bullet":
+            radius = BULLET_RADIUS
+        elif projectile_type == "Bombshell":
+            radius = BOMB_RADIUS
+        elif projectile_type == "Laser":
+            radius = 5
         else:
-            print(f"Tasto non associato a un proiettile: {chr(key)}")
+            radius = 10
 
-    def update_ui(self):
-        """
-        Aggiorna le informazioni dell'interfaccia utente per livello e punteggio.
-        """
-        self.score_label.text = f"Punteggio: {self.score}"
-        self.level_label.text = f"Livello: {self.current_level}"
+        self.projectiles.append({
+            "x": self.cannon_x,
+            "y": self.cannon_y,
+            "vx": vx,
+            "vy": vy,
+            "radius": radius,
+            "type": projectile_type
+        })
 
-    def update_cannon(self, dt):
-        """
-        Aggiorna il cannone e la grafica della scena.
-        """
+    def update(self, dt):
+        """Aggiorna lo stato del gioco."""
         self.canvas.clear()
         with self.canvas:
-            Color(0.2, 0.6, 0.8)
-            Ellipse(pos=(self.cannon.position[0] - 15, self.cannon.position[1] - 15), size=(30, 30))
-            Color(1, 1, 0)
-            x1, y1 = self.cannon.position
-            length = 100
-            angle_rad = math.radians(self.cannon.angle)
-            x2 = x1 + length * math.cos(angle_rad)
-            y2 = y1 + length * math.sin(angle_rad)
-            Line(points=[x1, y1, x2, y2], width=4)
-        self.draw_obstacles()
-        self.update_projectiles()
-        self.update_ui()
+            Color(*BACKGROUND_COLOR)
+            Rectangle(pos=(0, 0), size=(SCREEN_WIDTH, SCREEN_HEIGHT))
 
-    def draw_obstacles(self):
-        """
-        Disegna gli ostacoli con angoli arrotondati.
-        """
-        with self.canvas:
+            Color(*CANNON_COLOR)
+            Ellipse(pos=(self.cannon_x - 10, self.cannon_y - 10), size=(20, 20))
+            Line(points=[
+                self.cannon_x,
+                self.cannon_y,
+                self.cannon_x + 50 * math.cos(math.radians(self.cannon_angle)),
+                self.cannon_y + 50 * math.sin(math.radians(self.cannon_angle)),
+            ], width=2)
+
             for obstacle in self.obstacles:
-                ox, oy = obstacle.position
-                width, height = obstacle.width, obstacle.height
-                radius = 10
+                Color(0.5, 0.5, 0.5, 1)
+                Rectangle(pos=(obstacle["x"], obstacle["y"]),
+                          size=(obstacle["width"], obstacle["height"]))
 
-                Color(0.3, 0.8, 0.3, 0.7)
-                Rectangle(pos=(ox + radius, oy), size=(width - 2 * radius, height))
-                Rectangle(pos=(ox, oy + radius), size=(width, height - 2 * radius))
-                Ellipse(pos=(ox, oy), size=(2 * radius, 2 * radius))
-                Ellipse(pos=(ox + width - 2 * radius, oy), size=(2 * radius, 2 * radius))
-                Ellipse(pos=(ox, oy + height - 2 * radius), size=(2 * radius, 2 * radius))
-                Ellipse(pos=(ox + width - 2 * radius, oy + height - 2 * radius), size=(2 * radius, 2 * radius))
+            for target in self.targets:
+                target["y"] += math.sin(target["x"] + Clock.get_time() * 2) * 2
+                Color(*TARGET_COLOR)
+                Ellipse(pos=(target["x"] - target["radius"], target["y"] - target["radius"]),
+                        size=(target["radius"] * 2, target["radius"] * 2))
 
-                Color(0, 0.5, 0, 1)
-                Line(rectangle=(ox + radius, oy, width - 2 * radius, height), width=2)
-                Line(rectangle=(ox, oy + radius, width, height - 2 * radius), width=2)
+            for proj in self.projectiles[:]:
+                proj["x"] += proj["vx"] * dt
+                proj["y"] += proj["vy"] * dt
+                proj["vy"] -= GRAVITY * dt
+                Color(*PROJECTILE_COLOR)
+                Ellipse(pos=(proj["x"] - proj["radius"], proj["y"] - proj["radius"]),
+                        size=(proj["radius"] * 2, proj["radius"] * 2))
 
-    def update_projectiles(self):
-        with self.canvas:
-            for projectile in self.projectiles:
-                x, y = projectile.position
-                radius = projectile.radius
-
-                if isinstance(projectile, Bullet):
-                    Color(0, 0, 1, 1)
-                    Ellipse(pos=(x - radius, y - radius), size=(2 * radius, 2 * radius))
-                    Color(0, 0, 0, 0.8)
-                    Line(circle=(x, y, radius), width=2)
-
-                elif isinstance(projectile, Bombshell):
-                    Color(1, 0, 0, 1)
-                    Ellipse(pos=(x - radius * 1.5, y - radius * 1.5), size=(3 * radius, 3 * radius))
-                    Color(1, 0.5, 0, 0.7)
-                    Line(circle=(x, y, radius * 1.5), width=3)
-
-                elif isinstance(projectile, Laser):
-                    Color(0, 1, 0, 0.8)
-                    Line(points=[x, y, x + 50, y], width=5)
-                    Color(1, 1, 0, 0.6)
-                    Line(points=[x, y, x + 50, y], width=8)
-
-                projectile.update(1 / 60.0)
-                for obstacle in self.obstacles[:]:
-                    if obstacle.check_collision(projectile):
-                        if isinstance(projectile, Bombshell):
-                            self.explode_effect(projectile.position)
-                            if self.explosion_sound:
-                                self.explosion_sound.play()
-                        elif isinstance(projectile, Laser):
-                            projectile.reflect()
-                        if isinstance(obstacle, Target):
-                            obstacle.hit()
-                            if self.hit_target_sound:
-                                self.hit_target_sound.play()
-                            self.hit_target()
-                        if obstacle in self.obstacles:
-                            self.obstacles.remove(obstacle)
-                        if projectile in self.projectiles:
-                            self.projectiles.remove(projectile)
+                for obstacle in self.obstacles:
+                    if self.check_collision_with_obstacle(proj, obstacle):
+                        self.projectiles.remove(proj)
                         break
 
-    def change_projectile_type(self, new_type):
-        if new_type in ["bullet", "bombshell", "laser"]:
-            self.current_projectile_type = new_type
-            print(f"Tipo di proiettile cambiato a: {self.current_projectile_type}")
+                for target in self.targets[:]:
+                    if self.check_collision_with_target(proj, target):
+                        self.targets.remove(target)
+                        self.score += 50
+                        self.parent.update_score(self.score)
+                        self.projectiles.remove(proj)
+                        break
+
+                if proj["y"] < 0 or proj["x"] > SCREEN_WIDTH:
+                    self.projectiles.remove(proj)
+
+        if not self.targets:
+            self.next_level()
+
+    def check_collision_with_obstacle(self, proj, obstacle):
+        """Verifica collisione con un ostacolo."""
+        return (obstacle["x"] <= proj["x"] <= obstacle["x"] + obstacle["width"] and
+                obstacle["y"] <= proj["y"] <= obstacle["y"] + obstacle["height"])
+
+    def check_collision_with_target(self, proj, target):
+        """Verifica collisione con un target."""
+        dist = math.sqrt((proj["x"] - target["x"]) ** 2 + (proj["y"] - target["y"]) ** 2)
+        return dist <= target["radius"]
+
+    def change_projectile_type(self, direction):
+        """Cambia il tipo di proiettile."""
+        if direction == "next":
+            self.current_projectile_index = (self.current_projectile_index + 1) % len(self.projectile_types)
+        elif direction == "previous":
+            self.current_projectile_index = (self.current_projectile_index - 1) % len(self.projectile_types)
+        self.parent.update_projectile_type(self.projectile_types[self.current_projectile_index])
+
+    def next_level(self):
+        """Passa al livello successivo o termina il gioco."""
+        self.current_level += 1
+        if self.current_level > self.total_levels:
+            self.parent.show_game_over()
         else:
-            print("Tipo di proiettile non valido!")
-        
-    def hit_target(self):
-        """
-        Incrementa il punteggio e passa al livello successivo se tutti i bersagli sono colpiti.
-        """
-        self.obstacles = [obstacle for obstacle in self.obstacles if not isinstance(obstacle, Target)]
-        self.score += 100
-        print(f"Livello {self.current_level} completato! Punteggio: {self.score}")
-        print(len(self.obstacles), "lunghezza ostacoli rimasti")
-        if not self.obstacles:
-            self.current_level += 1
-            self.load_level(self.current_level)
+            self.parent.update_level(self.current_level)
+            self.generate_level()
 
-    def explode_effect(self, position):
-        """
-        Crea un effetto visivo di esplosione.
-        """
-        with self.canvas:
-            Color(1, 0.5, 0)
-            Ellipse(pos=(position[0] - 30, position[1] - 30), size=(60, 60))
-
-    def on_touch_move(self, touch):
-        if self.last_touch_y is None:
-            self.last_touch_y = touch.y
-        delta_y = touch.y - self.last_touch_y
-        self.last_touch_y = touch.y
-        delta_angle = delta_y * self.sensitivity
-        self.cannon.adjust_angle(delta_angle)
-        self.update_cannon(0)
-
-    def on_touch_up(self, touch):
-        self.last_touch_y = None
-
-    def on_touch_down(self, touch):
-        self.fire_projectile("bombshell")
-
-    def fire_projectile(self, projectile_type="bullet"):
-        velocity = self.cannon.velocity
-        angle = self.cannon.angle
-        if projectile_type == "bullet":
-            new_projectile = Bullet(self.cannon.position, velocity, angle)
-        elif projectile_type == "bombshell":
-            new_projectile = Bombshell(self.cannon.position, velocity, angle)
-        elif projectile_type == "laser":
-            new_projectile = Laser(self.cannon.position, velocity, angle)
-        if self.shoot_sound:
-            self.shoot_sound.play()
-        self.projectiles.append(new_projectile)
-        self.shots_fired += 1
+    def on_key_down(self, keycode):
+        """Gestisce gli input da tastiera."""
+        if keycode == 'up':
+            self.cannon_angle = min(self.cannon_angle + ANGLE_STEP, 90)
+        elif keycode == 'down':
+            self.cannon_angle = max(self.cannon_angle - ANGLE_STEP, 0)
+        elif keycode == 'a':
+            self.cannon_power = max(self.cannon_power - CANNON_POWER_STEP, 10)
+        elif keycode == 'd':
+            self.cannon_power = min(self.cannon_power + CANNON_POWER_STEP, 300)
+        elif keycode == 'spacebar':
+            self.fire_projectile()
+        elif keycode == 'q':
+            self.change_projectile_type("previous")
+        elif keycode == 'e':
+            self.change_projectile_type("next")
 
 
-class CannonGameApp(App):
+class GameLayout(FloatLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.game = CannonGame()
+        self.add_widget(self.game)
+
+        self.score_label = Label(
+            text="Punteggio: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={"x": 0.8, "top": 1},
+            font_size=20,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.score_label)
+
+        self.projectile_type_label = Label(
+            text="Proiettile: Bullet",
+            size_hint=(0.2, 0.1),
+            pos_hint={"x": 0.8, "y": 0},
+            font_size=20,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.projectile_type_label)
+
+        self.instructions_label = Label(
+            text="Freccia Su/Giù: Angolo | A/D: Potenza | Spazio: Spara | Q/E: Cambia Proiettile",
+            size_hint=(0.8, 0.1),
+            pos_hint={"x": 0.1, "y": 0.05},
+            font_size=16,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.instructions_label)
+
+        self.level_label = Label(
+            text="Livello: 1",
+            size_hint=(0.2, 0.1),
+            pos_hint={"x": 0.0, "top": 1},
+            font_size=20,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.level_label)
+
+    def update_score(self, score):
+        """Aggiorna il punteggio."""
+        self.score_label.text = f"Punteggio: {score}"
+
+    def update_projectile_type(self, projectile_type):
+        """Aggiorna il tipo di proiettile."""
+        self.projectile_type_label.text = f"Proiettile: {projectile_type}"
+
+    def update_level(self, level):
+        """Aggiorna il livello."""
+        self.level_label.text = f"Livello: {level}"
+
+    def show_game_over(self):
+        """Mostra un messaggio di fine gioco."""
+        game_over_label = Label(
+            text="Hai completato il gioco!",
+            size_hint=(0.8, 0.4),
+            pos_hint={"x": 0.1, "y": 0.3},
+            font_size=30,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(game_over_label)
+
+
+class CannonApp(App):
     def build(self):
-        widget = CannonWidget()
-        return widget
+        layout = GameLayout()
+        Window.bind(on_key_down=self.on_key_down)
+        Clock.schedule_interval(layout.game.update, 1 / 60)
+        return layout
+
+    def on_key_down(self, window, key, scancode, codepoint, modifier):
+        """Intercetta l'evento da tastiera e lo invia al gioco."""
+        key_map = {
+            273: 'up',
+            274: 'down',
+            97: 'a',
+            100: 'd',
+            32: 'spacebar',
+            113: 'q',
+            101: 'e',
+        }
+        if key in key_map:
+            self.root.game.on_key_down(key_map[key])
 
 
-if __name__ == '__main__':
-    CannonGameApp().run()
+if __name__ == "__main__":
+    CannonApp().run()
+
