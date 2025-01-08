@@ -1,3 +1,4 @@
+from tkinter import Button
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.uix.floatlayout import FloatLayout
@@ -5,11 +6,17 @@ from kivy.uix.label import Label
 from kivy.graphics import Color, Ellipse, Line, Rectangle
 from kivy.clock import Clock
 from kivy.core.window import Window
+from functools import partial
 import math
 import random
 from constants import *
 
+import os   
+os.environ["KIVY_METAL"] = "0"
 
+from kivy.config import Config
+Config.set('graphics', 'borderless', '1')
+Config.set('graphics', 'resizable', '0')
 class CannonGame(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -17,50 +24,23 @@ class CannonGame(Widget):
         self.cannon_x = 50
         self.cannon_y = 100
         self.cannon_angle = 45
-        self.cannon_power = 200
+        self.cannon_power = 300
         self.projectiles = []
         self.obstacles = []
         self.targets = []
         self.score = 0
         self.current_level = 1
         self.total_levels = 10
+        self.max_projectiles = 100
+        self.remaining_projectiles = self.max_projectiles
+        self.timer_max = 30
+        self.timer = self.timer_max
 
         self.projectile_types = ["Bullet", "Bombshell", "Laser"]
         self.current_projectile_index = 0
 
         self.generate_level()
-
-    from kivy.app import App
-from kivy.uix.widget import Widget
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.label import Label
-from kivy.graphics import Color, Ellipse, Line, Rectangle
-from kivy.clock import Clock
-from kivy.core.window import Window
-import math
-import random
-from constants import *
-
-
-class CannonGame(Widget):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.size = (SCREEN_WIDTH, SCREEN_HEIGHT)
-        self.cannon_x = 50
-        self.cannon_y = 100
-        self.cannon_angle = 45
-        self.cannon_power = 200  # Velocità minima più alta
-        self.projectiles = []
-        self.obstacles = []
-        self.targets = []
-        self.score = 0
-        self.current_level = 1
-        self.total_levels = 10
-
-        self.projectile_types = ["Bullet", "Bombshell", "Laser"]
-        self.current_projectile_index = 0
-
-        self.generate_level()
+        Clock.schedule_interval(self.update_timer, 1) 
 
     def generate_level(self):
         """Genera ostacoli e target casualmente."""
@@ -78,7 +58,8 @@ class CannonGame(Widget):
             while True:
                 obstacle_x = random.randint(200, SCREEN_WIDTH - 100)
                 obstacle_y = random.randint(50, SCREEN_HEIGHT - 50)
-                new_obstacle = {"x": obstacle_x, "y": obstacle_y, "width": 50, "height": 50}
+                obstacle_type = random.choice(["Rock", "Mirror", "Perpetio", "Movable"])
+                new_obstacle = {"x": obstacle_x, "y": obstacle_y, "width": 50, "height": 50, "type": obstacle_type}
                 if not self.check_overlap(new_obstacle, self.obstacles):
                     self.obstacles.append(new_obstacle)
                     break
@@ -91,6 +72,21 @@ class CannonGame(Widget):
                 if not self.check_overlap_with_targets(new_target, self.obstacles):
                     self.targets.append(new_target)
                     break
+                
+        self.remaining_projectiles = self.max_projectiles
+        self.timer = self.timer_max
+        if self.parent:
+            self.parent.update_projectiles(self.remaining_projectiles)
+            self.parent.update_timer(self.timer)
+        
+    def update_timer(self, dt):
+        if self.timer > 0:
+            self.timer -= 1
+            if self.parent:
+                self.parent.update_timer(self.timer)
+        else:
+            if self.parent:
+                self.parent.show_level_failed("Tempo scaduto!")
 
     def check_overlap(self, rect, others):
         """Verifica sovrapposizione tra rettangoli."""
@@ -113,7 +109,14 @@ class CannonGame(Widget):
         return False
 
     def fire_projectile(self):
-        """Logica per sparare un proiettile."""
+        if self.remaining_projectiles <= 0 and self.parent:
+            self.parent.show_level_failed("Proiettili esauriti!")
+            return
+
+        self.remaining_projectiles -= 1
+        if self.parent:
+            self.parent.update_projectiles(self.remaining_projectiles)
+
         projectile_type = self.projectile_types[self.current_projectile_index]
         angle_rad = math.radians(self.cannon_angle)
         vx = self.cannon_power * math.cos(angle_rad)
@@ -125,6 +128,7 @@ class CannonGame(Widget):
             radius = BOMB_RADIUS
         elif projectile_type == "Laser":
             radius = 5
+            vx *= 2
         else:
             radius = 10
 
@@ -154,9 +158,16 @@ class CannonGame(Widget):
             ], width=2)
 
             for obstacle in self.obstacles:
-                Color(0.5, 0.5, 0.5, 1)
-                Rectangle(pos=(obstacle["x"], obstacle["y"]),
-                          size=(obstacle["width"], obstacle["height"]))
+                if obstacle["type"] == "Rock":
+                    Color(0.5, 0.5, 0.5, 1)  # Grigio per Rock
+                elif obstacle["type"] == "Mirror":
+                    Color(0, 0, 1, 1)  # Blu per Mirror
+                elif obstacle["type"] == "Perpetio":
+                    Color(1, 0, 0, 1)  # Rosso per Perpetio
+                elif obstacle["type"] == "Movable":
+                    Color(0, 1, 0, 1)  # Verde per Movable Block
+                Rectangle(pos=(obstacle["x"], obstacle["y"]), size=(obstacle["width"], obstacle["height"]))
+
 
             for target in self.targets:
                 target["y"] += math.sin(target["x"] + Clock.get_time() * 2) * 2
@@ -167,6 +178,8 @@ class CannonGame(Widget):
             for proj in self.projectiles[:]:
                 proj["x"] += proj["vx"] * dt
                 proj["y"] += proj["vy"] * dt
+                if proj["type"] != "Laser":
+                    proj["vy"] -= GRAVITY * dt
                 proj["vy"] -= GRAVITY * dt
                 Color(*PROJECTILE_COLOR)
                 Ellipse(pos=(proj["x"] - proj["radius"], proj["y"] - proj["radius"]),
@@ -174,14 +187,25 @@ class CannonGame(Widget):
 
                 for obstacle in self.obstacles:
                     if self.check_collision_with_obstacle(proj, obstacle):
+                        if obstacle["type"] == "Rock":
+                            self.obstacles.remove(obstacle)  # Distruggi Rock
+                        elif obstacle["type"] == "Mirror" and proj["type"] == "Laser":
+                            proj["vx"] = -proj["vx"]  # Riflette il laser invertendo la direzione orizzontale
+                        elif obstacle["type"] == "Perpetio":
+                            pass  # Perpetio è indistruttibile, non succede nulla
+                        elif obstacle["type"] == "Movable":
+                            self.obstacles.remove(obstacle)  # Distruggi il Movable Block
+
                         self.projectiles.remove(proj)
                         break
+
 
                 for target in self.targets[:]:
                     if self.check_collision_with_target(proj, target):
                         self.targets.remove(target)
                         self.score += 50
-                        self.parent.update_score(self.score)
+                        if self.parent:
+                            self.parent.update_score(self.score)
                         self.projectiles.remove(proj)
                         break
 
@@ -277,10 +301,60 @@ class GameLayout(FloatLayout):
             color=(1, 1, 1, 1),
         )
         self.add_widget(self.level_label)
+        
+        self.projectiles_label = Label(
+            text="Proiettili: 10",
+            size_hint=(0.2, 0.1),
+            pos_hint={"x": 0.6, "y": 0},
+            font_size=20,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.projectiles_label)
+
+        self.timer_label = Label(
+            text="Timer: 30",
+            size_hint=(0.2, 0.1),
+            pos_hint={"x": 0.4, "y": 0},
+            font_size=20,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(self.timer_label)
+    
+    def show_level_failed(self, message):
+        print("Il livello è fallito")
+        # crea un bottone per ricominciare il gioco ma prima cambia finestra
+        self.clear_widgets()
+        
+        self.game.canvas.clear()
+        with self.game.canvas:
+            Color(*BACKGROUND_COLOR)
+            Rectangle(pos=(0, 0), size=(SCREEN_WIDTH, SCREEN_HEIGHT))
+        game_over_label = Label(
+            text=message,
+            size_hint=(0.8, 0.4),
+            pos_hint={"x": 0.1, "y": 0.3},
+            font_size=30,
+            color=(1, 1, 1, 1),
+        )
+        self.add_widget(game_over_label)
+         
+
+    def restart_game(self, instance):
+        """Resetta il gioco e ricomincia dal primo livello."""
+        self.clear_widgets()  # Rimuove tutti i widget esistenti
+        self.__init__()  # Ricrea il layout e ricomincia dal livello 1
 
     def update_score(self, score):
         """Aggiorna il punteggio."""
         self.score_label.text = f"Punteggio: {score}"
+        
+    def update_projectiles(self, remaining_projectiles):
+        self.projectiles_label.text = f"Proiettili: {remaining_projectiles}"
+
+    def update_timer(self, timer):
+        """Aggiorna il timer."""
+        self.timer_label.text = f"Timer: {timer}"
+
 
     def update_projectile_type(self, projectile_type):
         """Aggiorna il tipo di proiettile."""
