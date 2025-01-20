@@ -17,10 +17,13 @@ os.environ["KIVY_METAL"] = "0"
 from kivy.config import Config
 Config.set('graphics', 'borderless', '1')
 Config.set('graphics', 'resizable', '0')
+Config.set('graphics', 'width', str(Window.width))
+Config.set('graphics', 'height', str(Window.height))
 class CannonGame(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.size = (SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.size_hint = (None, None)
+        self.size = (Window.width, Window.height)
         self.cannon_x = 50
         self.cannon_y = 100
         self.cannon_angle = 45
@@ -56,8 +59,8 @@ class CannonGame(Widget):
 
         for _ in range(num_obstacles):
             while True:
-                obstacle_x = random.randint(200, SCREEN_WIDTH - 100)
-                obstacle_y = random.randint(50, SCREEN_HEIGHT - 50)
+                obstacle_x = random.randint(200, Window.width - 100)
+                obstacle_y = random.randint(50, Window.height - 50)
                 obstacle_type = random.choice(["Rock", "Mirror", "Perpetio", "Movable"])
                 new_obstacle = {"x": obstacle_x, "y": obstacle_y, "width": 50, "height": 50, "type": obstacle_type}
                 if not self.check_overlap(new_obstacle, self.obstacles):
@@ -66,8 +69,8 @@ class CannonGame(Widget):
 
         for _ in range(num_targets):
             while True:
-                target_x = random.randint(200, SCREEN_WIDTH - 100)
-                target_y = random.randint(50, SCREEN_HEIGHT - 50)
+                target_x = random.randint(200, Window.width - 100)
+                target_y = random.randint(50, Window.height - 50)
                 new_target = {"x": target_x, "y": target_y, "radius": 20}
                 if not self.check_overlap_with_targets(new_target, self.obstacles):
                     self.targets.append(new_target)
@@ -144,9 +147,11 @@ class CannonGame(Widget):
     def update(self, dt):
         """Aggiorna lo stato del gioco."""
         self.canvas.clear()
+        Color(1, 0, 0, 1)  # Colore rosso
+        Line(rectangle=(0, 0, Window.width, Window.height), width=2)
         with self.canvas:
             Color(*BACKGROUND_COLOR)
-            Rectangle(pos=(0, 0), size=(SCREEN_WIDTH, SCREEN_HEIGHT))
+            Rectangle(pos=(0, 0), size=(self.width, self.height))
 
             Color(*CANNON_COLOR)
             Ellipse(pos=(self.cannon_x - 10, self.cannon_y - 10), size=(20, 20))
@@ -171,6 +176,10 @@ class CannonGame(Widget):
 
             for target in self.targets:
                 target["y"] += math.sin(target["x"] + Clock.get_time() * 2) * 2
+                if target["y"] < 0:
+                    target["y"] = 0
+                elif target["y"] + target["radius"] * 2 > Window.height:
+                    target["y"] = Window.height - target["radius"] * 2
                 Color(*TARGET_COLOR)
                 Ellipse(pos=(target["x"] - target["radius"], target["y"] - target["radius"]),
                         size=(target["radius"] * 2, target["radius"] * 2))
@@ -209,7 +218,7 @@ class CannonGame(Widget):
                         self.projectiles.remove(proj)
                         break
 
-                if proj["y"] < 0 or proj["x"] > SCREEN_WIDTH:
+                if proj["y"] < 0 or proj["x"] > Window.width:
                     self.projectiles.remove(proj)
 
         if not self.targets:
@@ -328,7 +337,7 @@ class GameLayout(FloatLayout):
         self.game.canvas.clear()
         with self.game.canvas:
             Color(*BACKGROUND_COLOR)
-            Rectangle(pos=(0, 0), size=(SCREEN_WIDTH, SCREEN_HEIGHT))
+            Rectangle(pos=(0, 0), size=(Window.width, Window.height))
         game_over_label = Label(
             text=message,
             size_hint=(0.8, 0.4),
@@ -341,8 +350,8 @@ class GameLayout(FloatLayout):
 
     def restart_game(self, instance):
         """Resetta il gioco e ricomincia dal primo livello."""
-        self.clear_widgets()  # Rimuove tutti i widget esistenti
-        self.__init__()  # Ricrea il layout e ricomincia dal livello 1
+        self.clear_widgets()
+        self.__init__() 
 
     def update_score(self, score):
         """Aggiorna il punteggio."""
