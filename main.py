@@ -6,13 +6,38 @@ from kivy.uix.label import Label
 from kivy.graphics import Color, Ellipse, Line, Rectangle
 from kivy.clock import Clock
 from kivy.core.window import Window
-from functools import partial
 import math
 import random
 from constants import *
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.textinput import TextInput
 
 import os   
 os.environ["KIVY_METAL"] = "0"
+
+import json
+import os
+
+SCORES_FILE = "scores.json"
+
+def load_scores():
+    """Carica i punteggi dal file."""
+    if not os.path.exists(SCORES_FILE):
+        with open(SCORES_FILE, "w") as f:
+            json.dump({"scores": []}, f)
+
+    with open(SCORES_FILE, "r") as f:
+        data = json.load(f)
+    return data.get("scores", [])
+
+def save_score(name, score):
+    """Salva un nuovo punteggio nel file."""
+    scores = load_scores()
+    scores.append({"name": name, "score": score})
+    scores = sorted(scores, key=lambda x: x["score"], reverse=True)[:10]
+    with open(SCORES_FILE, "w") as f:
+        json.dump({"scores": scores}, f)
 
 from kivy.config import Config
 Config.set('graphics', 'borderless', '1')
@@ -147,7 +172,7 @@ class CannonGame(Widget):
     def update(self, dt):
         """Aggiorna lo stato del gioco."""
         self.canvas.clear()
-        Color(1, 0, 0, 1)  # Colore rosso
+        Color(1, 0, 0, 1)
         Line(rectangle=(0, 0, Window.width, Window.height), width=2)
         with self.canvas:
             Color(*BACKGROUND_COLOR)
@@ -164,13 +189,13 @@ class CannonGame(Widget):
 
             for obstacle in self.obstacles:
                 if obstacle["type"] == "Rock":
-                    Color(0.5, 0.5, 0.5, 1)  # Grigio per Rock
+                    Color(0.5, 0.5, 0.5, 1)
                 elif obstacle["type"] == "Mirror":
-                    Color(0, 0, 1, 1)  # Blu per Mirror
+                    Color(0, 0, 1, 1)
                 elif obstacle["type"] == "Perpetio":
-                    Color(1, 0, 0, 1)  # Rosso per Perpetio
+                    Color(1, 0, 0, 1)
                 elif obstacle["type"] == "Movable":
-                    Color(0, 1, 0, 1)  # Verde per Movable Block
+                    Color(0, 1, 0, 1)
                 Rectangle(pos=(obstacle["x"], obstacle["y"]), size=(obstacle["width"], obstacle["height"]))
 
 
@@ -197,13 +222,13 @@ class CannonGame(Widget):
                 for obstacle in self.obstacles:
                     if self.check_collision_with_obstacle(proj, obstacle):
                         if obstacle["type"] == "Rock":
-                            self.obstacles.remove(obstacle)  # Distruggi Rock
+                            self.obstacles.remove(obstacle)
                         elif obstacle["type"] == "Mirror" and proj["type"] == "Laser":
-                            proj["vx"] = -proj["vx"]  # Riflette il laser invertendo la direzione orizzontale
+                            proj["vx"] = -proj["vx"]
                         elif obstacle["type"] == "Perpetio":
-                            pass  # Perpetio è indistruttibile, non succede nulla
+                            pass
                         elif obstacle["type"] == "Movable":
-                            self.obstacles.remove(obstacle)  # Distruggi il Movable Block
+                            self.obstacles.remove(obstacle)
 
                         self.projectiles.remove(proj)
                         break
@@ -331,7 +356,6 @@ class GameLayout(FloatLayout):
     
     def show_level_failed(self, message):
         print("Il livello è fallito")
-        # crea un bottone per ricominciare il gioco ma prima cambia finestra
         self.clear_widgets()
         
         self.game.canvas.clear()
@@ -374,38 +398,241 @@ class GameLayout(FloatLayout):
         self.level_label.text = f"Livello: {level}"
 
     def show_game_over(self):
-        """Mostra un messaggio di fine gioco."""
+        """Mostra un messaggio di fine gioco e salva il punteggio."""
+        self.clear_widgets()
+
+        # Messaggio di fine gioco
         game_over_label = Label(
-            text="Hai completato il gioco!",
+            text="Hai completato il gioco!\nInserisci il tuo nome:",
             size_hint=(0.8, 0.4),
-            pos_hint={"x": 0.1, "y": 0.3},
-            font_size=30,
-            color=(1, 1, 1, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.6},
+            font_size=24,
+            halign="center"
         )
         self.add_widget(game_over_label)
+
+        # Input per il nome del giocatore
+        name_input = TextInput(
+            hint_text="Inserisci il tuo nome",
+            size_hint=(0.6, 0.1),
+            pos_hint={"center_x": 0.5, "center_y": 0.4},
+            multiline=False
+        )
+        self.add_widget(name_input)
+
+        # Bottone per salvare il punteggio
+        save_button = Button(
+            text="Salva Punteggio",
+            size_hint=(0.3, 0.1),
+            pos_hint={"center_x": 0.5, "center_y": 0.3},
+            font_size=20
+        )
+        save_button.bind(on_release=lambda instance: self.save_score(name_input.text))
+        self.add_widget(save_button)
+
+    def save_score(self, name):
+        """Salva il punteggio e torna al menu principale."""
+        save_score(name, self.game.score)
+        self.app.show_menu()
+            
+    
 
 
 class CannonApp(App):
     def build(self):
-        layout = GameLayout()
+        self.menu = MainMenu(self)
+        return self.menu
+    
+    def start_game(self):
+        """Avvia il gioco rimuovendo il menu principale."""
+        self.root.clear_widgets()
+        self.game_layout = GameLayout()
+        self.root.add_widget(self.game_layout)
         Window.bind(on_key_down=self.on_key_down)
-        Clock.schedule_interval(layout.game.update, 1 / 60)
-        return layout
+        Clock.schedule_interval(self.game_layout.game.update, 1 / 60)
+        
+    def load_game(self):
+        """Placeholder per la funzionalità di caricamento partita."""
+        print("Caricamento partita in arrivo...")
+
+    def show_hall_of_fame(self):
+        """Placeholder per la funzionalità Hall of Fame."""
+        print("Visualizzazione Hall of Fame in arrivo...")
+        
+    def show_help(self):
+        """Mostra la schermata di Help."""
+        self.root.clear_widgets()
+        self.help_screen = HelpScreen(self)
+        self.root.add_widget(self.help_screen)
+        
+    def show_menu(self):
+        """Mostra il menu principale."""
+        self.root.clear_widgets()
+        self.menu = MainMenu(self)
+        self.root.add_widget(self.menu)
+        
+    def show_hall_of_fame(self):
+        """Mostra la schermata della Hall of Fame."""
+        self.root.clear_widgets()
+        self.hall_of_fame_screen = HallOfFameScreen(self)
+        self.root.add_widget(self.hall_of_fame_screen)
 
     def on_key_down(self, window, key, scancode, codepoint, modifier):
         """Intercetta l'evento da tastiera e lo invia al gioco."""
-        key_map = {
-            273: 'up',
-            274: 'down',
-            97: 'a',
-            100: 'd',
-            32: 'spacebar',
-            113: 'q',
-            101: 'e',
-        }
-        if key in key_map:
-            self.root.game.on_key_down(key_map[key])
+        if hasattr(self, 'game_layout'):
+            key_map = {
+                273: 'up',
+                274: 'down',
+                97: 'a',
+                100: 'd',
+                32: 'spacebar',
+                113: 'q',
+                101: 'e',
+            }
+            if key in key_map:
+                self.game_layout.game.on_key_down(key_map[key])
+                
+class HelpScreen(FloatLayout):
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
 
+        instructions = Label(
+            text=(
+                "Benvenuto nel gioco Cannon!\n"
+                "Istruzioni:\n"
+                "- Freccia Su/Giù: Modifica l'angolo del cannone.\n"
+                "- Tasto A/D: Modifica la potenza del cannone.\n"
+                "- Spazio: Spara un proiettile.\n"
+                "- Tasto Q/E: Cambia il tipo di proiettile.\n"
+            ),
+            size_hint=(0.8, 0.6),
+            pos_hint={"center_x": 0.5, "center_y": 0.6},
+            font_size=20,
+            halign="center",
+            valign="middle"
+        )
+        instructions.bind(size=instructions.setter("text_size"))
+
+        back_button = Button(
+            text="Torna al Menu",
+            size_hint=(0.3, 0.1),
+            pos_hint={"center_x": 0.5, "y": 0.1},
+            font_size=20
+        )
+        back_button.bind(on_release=self.back_to_menu)
+
+        self.add_widget(instructions)
+        self.add_widget(back_button)
+
+    def back_to_menu(self, instance):
+        """Torna al menu principale."""
+        self.app.show_menu()
+
+from kivy.uix.gridlayout import GridLayout
+class HallOfFameScreen(FloatLayout):
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+
+        title = Label(
+            text="Hall of Fame",
+            size_hint=(1, 0.2),
+            pos_hint={"center_x": 0.5, "top": 1},
+            font_size=30,
+            halign="center"
+        )
+        self.add_widget(title)
+
+        score_layout = GridLayout(cols=2, size_hint=(0.8, 0.6), pos_hint={"center_x": 0.5, "center_y": 0.5})
+        scores = load_scores()
+
+        for entry in scores:
+            name_label = Label(text=entry["name"], font_size=20)
+            score_label = Label(text=str(entry["score"]), font_size=20)
+            score_layout.add_widget(name_label)
+            score_layout.add_widget(score_label)
+
+        self.add_widget(score_layout)
+
+        back_button = Button(
+            text="Torna al Menu",
+            size_hint=(0.3, 0.1),
+            pos_hint={"center_x": 0.5, "y": 0.1},
+            font_size=20
+        )
+        back_button.bind(on_release=self.back_to_menu)
+        self.add_widget(back_button)
+
+    def back_to_menu(self, instance):
+        """Torna al menu principale."""
+        self.app.show_menu()
+
+class MainMenu(FloatLayout):
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+
+        layout = BoxLayout(orientation='vertical', spacing=20, size_hint=(0.5, 0.6), pos_hint={"center_x": 0.5, "center_y": 0.5})
+
+        start_button = Button(
+            text="Inizia Gioco",
+            font_size=24,
+            size_hint=(1, 0.2)
+        )
+        start_button.bind(on_release=self.start_game)
+
+        load_button = Button(
+            text="Carica Partita",
+            font_size=24,
+            size_hint=(1, 0.2)
+        )
+        load_button.bind(on_release=self.load_game)
+
+        hall_of_fame_button = Button(
+            text="Hall of Fame",
+            font_size=24,
+            size_hint=(1, 0.2)
+        )
+        hall_of_fame_button.bind(on_release=self.show_hall_of_fame)
+        
+        help_button = Button(
+            text="Help",
+            font_size=24,
+            size_hint=(1, 0.2)
+        )
+        help_button.bind(on_release=self.show_help)
+
+        exit_button = Button(
+            text="Esci",
+            font_size=24,
+            size_hint=(1, 0.2)
+        )
+        exit_button.bind(on_release=self.exit_game)
+
+        layout.add_widget(start_button)
+        layout.add_widget(load_button)
+        layout.add_widget(hall_of_fame_button)
+        layout.add_widget(help_button)
+        layout.add_widget(exit_button)
+
+        self.add_widget(layout)
+
+    def start_game(self, instance):
+        self.app.start_game()
+
+    def load_game(self, instance):
+        print("Funzione di Carica Partita non ancora implementata.")
+
+    def show_hall_of_fame(self, instance):
+        print("Funzione di Hall of Fame non ancora implementata.")
+        
+    def show_help(self, instance):
+        self.app.show_help()
+
+    def exit_game(self, instance):
+        """Chiude l'applicazione."""
+        App.get_running_app().stop()
 
 if __name__ == "__main__":
     CannonApp().run()
